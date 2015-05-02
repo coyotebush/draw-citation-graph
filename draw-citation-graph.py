@@ -112,7 +112,7 @@ class Paper:
             check_call( [ "pdftotext", p, t ] )
         return True
     def make_title_re(self):
-        re_text = re.sub('\s+','\s+',self.title)
+        re_text = re.sub('\W+','\W+',self.title)
         return re.compile(re_text,re.IGNORECASE|re.MULTILINE)
     def contains_re(self,re_object):
         if self.update_text_file():
