@@ -180,7 +180,7 @@ latest_hue = 0
 def year_to_hsv(y):
     p = (y - earliest_year) / float(latest_year - earliest_year)
     h = p * (latest_hue - earliest_hue) + earliest_hue
-    return (h,1,1)
+    return (h,0.4,1)
 
 print >> sys.stderr, "Start keys are: "
 for k in start_keys:
