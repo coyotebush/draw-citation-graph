@@ -196,6 +196,8 @@ print >> sys.stderr, "Earliest year is: "+str(earliest_year)
 print >> sys.stderr, "Latest year is: "+str(latest_year)
 
 print '''digraph citations {
+    layout=dot
+    rankdir=RL
     overlap=scale
     splines=true
     sep=0.1
@@ -204,6 +206,7 @@ print '''digraph citations {
 
 nodes_with_connections = set([])
 connections = []
+years = {}
 
 for k in start_keys:
     print >> sys.stderr, "Starting with key "+k
@@ -227,10 +230,22 @@ for k in nodes_with_connections:
         print >> sys.stderr, "Warning: no information for start key "+k
         continue
     start_paper = keys_to_papers[k]
-    hsv = year_to_hsv(start_paper.year_as_int())
+    y = start_paper.year_as_int()
+    hsv = year_to_hsv(y)
     print "    \"%s\" [style=filled fillcolor=\"%f, %f, %f\"]" % (k,hsv[0],hsv[1],hsv[2])
+    if y not in years:
+        years[y] = set([])
+    years[y].add(k)
 
 for c in connections:
     print c
+
+for (y, ks) in years.iteritems():
+    print "    {"
+    print "        rank=same"
+    # print "    subgraph cluster_%d {" % y
+    for k in ks:
+        print "        \"%s\"" % k
+    print "    }"
 
 print "}"
