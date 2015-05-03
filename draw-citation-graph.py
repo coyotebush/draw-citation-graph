@@ -241,11 +241,15 @@ for c in connections:
     print c
 
 for (y, ks) in years.iteritems():
+    # print "    subgraph cluster_%d {" % y
     print "    {"
     print "        rank=same"
-    # print "    subgraph cluster_%d {" % y
+    print "        %d [style=invis]" % y
     for k in ks:
         print "        \"%s\"" % k
     print "    }"
+
+year_seq = reversed(sorted(years.keys()))
+print " -> ".join(str(y) for y in year_seq) + " [style=invis]"
 
 print "}"
