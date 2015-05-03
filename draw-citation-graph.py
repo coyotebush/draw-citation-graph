@@ -1,4 +1,4 @@
-#!/usr/bin/python2.5
+#!/usr/bin/python2.7
 
 # This is an attempt to build a (most likely incomplete) citation
 # graph from a BibTeX file and a directory of PDFs whose names
@@ -52,34 +52,52 @@ import sets
 import os
 import re
 import colorsys
+import argparse
 from subprocess import check_call
 from stat import ST_MTIME
 
-def usage_and_exit(extra_message=None):
-    if extra_message:
-        print extra_message
-    print "Usage: draw-citation-graph BIBTEX-FILE PDF-DIRECTORY [TEX-DOCUMENT]"
-    sys.exit(1)
+def readable(directory=False):
+    def readable_path(path):
+        if not os.access(path, os.R_OK):
+            raise argparse.ArgumentTypeError("{} is not readable" % path)
+        if directory and not os.path.isdir(path):
+            raise argparse.ArgumentTypeError("{} is not a directory" % path)
+        return path
+    return readable_path
 
-if not (len(sys.argv) == 3 or len(sys.argv) == 4):
-    usage_and_exit()
+parser = argparse.ArgumentParser(
+    description='Create a citation graph from BibTeX and PDFs'
+)
+parser.add_argument(
+    '-a', '--all',
+    action='store_const',
+    const=True,
+    help='include papers with no connections'
+)
+parser.add_argument(
+    '-y', '--year-rank',
+    action='store_const',
+    const=True,
+    help='organize papers into ranks by year'
+)
+parser.add_argument(
+    'bibtex_file',
+    type=readable(),
+    help='BibTeX document'
+)
+parser.add_argument(
+    'pdf_directory',
+    type=readable(directory=True),
+    help='directory containing PDF files'
+)
+parser.add_argument(
+    'tex_file',
+    type=argparse.FileType('r'),
+    nargs='?',
+    help='LaTeX document containing citations'
+)
 
-pdf_directory = sys.argv[2]
-bibtex_file = sys.argv[1]
-tex_file = None
-if len(sys.argv) == 4:
-    tex_file = sys.argv[3]
-
-if not os.path.exists(pdf_directory):
-    usage_and_exit("The PDF directory '"+pdf_directory+"' doesn't exist.")
-
-if not os.path.isdir(pdf_directory):
-    usage_and_exit("'"+pdf_directory+"' is not a directory.")
-
-if tex_file and not os.path.exists(tex_file):
-    usage_and_exit("The TeX file '"+tex_file+"' does not exist.")
-
-b = _bibtex.open_file(bibtex_file,1) # The second parameter means "strict"
+args = parser.parse_args()
 
 class Paper:
     def __init__(self,key,title,year):
@@ -93,9 +111,9 @@ class Paper:
     def __hash__(self):
         return self.key.__hash__()
     def pdf_filename(self):
-        return os.path.join(pdf_directory,self.key+".pdf")
+        return os.path.join(args.pdf_directory,self.key+".pdf")
     def text_filename(self):
-        return os.path.join(pdf_directory,self.key+".txt")
+        return os.path.join(args.pdf_directory,self.key+".txt")
     # Try to make a text version of the paper, return a boolean
     # indicating if it succeeded:
     def update_text_file(self):
@@ -137,15 +155,16 @@ start_keys = set([])
 
 papers_with_pdf_versions = set([])
 
-if tex_file:
-    fp = open(tex_file,"r")
-    matches = re.findall('\\cite.{([^}]+)}',fp.read())
-    fp.close()
+if args.tex_file:
+    matches = re.findall('\\cite.{([^}]+)}', args.tex_file.read())
+    args.tex_file.close()
     for m in matches:
         for k in m.split(','):
             start_keys.add(k)
 
 keys_to_papers = {}
+
+b = _bibtex.open_file(args.bibtex_file,1) # The second parameter means "strict"
 
 while True:
     be = _bibtex.next(b)
@@ -163,12 +182,12 @@ while True:
         p = Paper(key,t[2],y[2])
         bibtex_papers.add(p)
         keys_to_papers[key] = p
-        paper_pdf_file = os.path.join(pdf_directory,key+".pdf")
+        paper_pdf_file = os.path.join(args.pdf_directory,key+".pdf")
         if os.path.exists(paper_pdf_file):
             papers_with_pdf_versions.add(p)
         else:
             print >> sys.stderr, "Warning: no PDF file "+paper_pdf_file
-        if not tex_file:
+        if not args.tex_file:
             start_keys.add(key)
 
 earliest_year = 10000
@@ -225,6 +244,9 @@ for k in start_keys:
             nodes_with_connections.add(p.key)
             connections.append("    \"%s\" -> \"%s\"" % (p.key,k))
 
+if args.all:
+    nodes_with_connections = start_keys
+
 for k in nodes_with_connections:
     if not k in keys_to_papers:
         print >> sys.stderr, "Warning: no information for start key "+k
@@ -240,16 +262,16 @@ for k in nodes_with_connections:
 for c in connections:
     print c
 
-for (y, ks) in years.iteritems():
-    # print "    subgraph cluster_%d {" % y
-    print "    {"
-    print "        rank=same"
-    print "        %d [style=invis]" % y
-    for k in ks:
-        print "        \"%s\"" % k
-    print "    }"
+if args.year_rank:
+    for (y, ks) in years.iteritems():
+        print "    {"
+        print "        rank=same"
+        print "        %d [style=invis]" % y
+        for k in ks:
+            print "        \"%s\"" % k
+        print "    }"
 
-year_seq = reversed(sorted(years.keys()))
-print " -> ".join(str(y) for y in year_seq) + " [style=invis]"
+    year_seq = reversed(sorted(years.keys()))
+    print " -> ".join(str(y) for y in year_seq) + " [style=invis]"
 
 print "}"
